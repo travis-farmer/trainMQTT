@@ -15,6 +15,7 @@ int cntLight = 0;
 int confTurnoutMap[32][5];
 int confLightNum[32][2];
 int confSensorNum[32];
+bool debugSys = false;
 
 const size_t bufferLen = 80;
 char buffer[bufferLen];
@@ -36,7 +37,10 @@ char pass[] = WPSWD;       // your SSID Password
 
 void readConf() {
   String strBuffer = "";
-
+  if (ini.getValue("counts", "debug", buffer, bufferLen)) {
+    strBuffer = buffer;
+    if (strBuffer.toInt() == 1) debugSys = true;
+  }
   if (ini.getValue("counts", "sensor", buffer, bufferLen)) {
     strBuffer = buffer;
     cntSensor = strBuffer.toInt();
@@ -53,41 +57,41 @@ void readConf() {
     char sz[4];
     sprintf(sz, "%d", i+1);
     if (ini.getValue("turnout", sz, buffer, bufferLen)) {
-      //Serial.print("Turnout ");
+      if (debugSys) Serial.print("Turnout ");
       strBuffer = buffer;
       String tmpStr = "";
       int tmpInt = strBuffer.indexOf(":");
       tmpStr = strBuffer.substring(0,tmpInt);
       confTurnoutMap[i][0] = tmpStr.toInt();
-      //Serial.print(tmpStr);
-      //Serial.print(" - ");
+      if (debugSys) Serial.print(tmpStr);
+      if (debugSys) Serial.print(" - ");
       int oldTmpInt = tmpInt;
       tmpInt = strBuffer.indexOf(":",tmpInt + 1);
       tmpStr = strBuffer.substring(oldTmpInt+1,tmpInt);
       confTurnoutMap[i][1] = tmpStr.toInt();
-      //Serial.print(tmpStr);
-      //Serial.print(" - ");
+      if (debugSys) Serial.print(tmpStr);
+      if (debugSys) Serial.print(" - ");
       oldTmpInt = tmpInt;
       tmpInt = strBuffer.indexOf(":",tmpInt + 1);
       tmpStr = strBuffer.substring(oldTmpInt+1,tmpInt);
       confTurnoutMap[i][2] = tmpStr.toInt();
-      //Serial.print(tmpStr);
+      if (debugSys) Serial.print(tmpStr);
       oldTmpInt = tmpInt;
       tmpInt = strBuffer.indexOf(":",tmpInt + 1);
       if (tmpInt > 1) {
-        //Serial.print(" - ");
+        if (debugSys) Serial.print(" - ");
         tmpStr = strBuffer.substring(oldTmpInt+1,tmpInt);
         confTurnoutMap[i][3] = tmpStr.toInt();
-        //Serial.print(tmpStr);
-        //Serial.print(" - ");
+        if (debugSys) Serial.print(tmpStr);
+        if (debugSys) Serial.print(" - ");
         oldTmpInt = tmpInt;
         tmpInt = strBuffer.indexOf(":",tmpInt + 1);
         tmpStr = strBuffer.substring(oldTmpInt+1,tmpInt);
         confTurnoutMap[i][4] = tmpStr.toInt();
-        //Serial.println(tmpStr);
+        if (debugSys) Serial.println(tmpStr);
       } else {
         tmpInt = 0;
-        //Serial.println();
+        if (debugSys) Serial.println();
       }
 
     }
@@ -133,12 +137,20 @@ void readConf() {
   }
 }
 
-void ProcLED(int lPin, int Val) {
-  mcp.digitalWrite(lPin,Val);
+void ProcLED(int lPin, int lVal) {
+  mcp.digitalWrite(lPin,lVal);
+  if (debugSys) Serial.print("LED ");
+  if (debugSys) Serial.print(lPin);
+  if (debugSys) Serial.print(": ");
+  if (debugSys) Serial.println(lVal);
 }
 
 void ProcServo(int sPin, int sVal) {
   servo.setAngle(sPin, sVal);
+  if (debugSys) Serial.print("SERVO ");
+  if (debugSys) Serial.print(sPin);
+  if (debugSys) Serial.print(": ");
+  if (debugSys) Serial.println(sVal);
 }
 
 void procTurnout(int turnoutID, int turnoutValue) {
@@ -180,6 +192,10 @@ void callback(char* topic, byte* payload, unsigned int length) {
     for (int i=0; i<cntLight;i++) {
       if (confLightNum[i][0] == tmpLight) {
         ProcLED(confLightNum[i][1],(Value == "ON") ? 1 : 0);
+        if (debugSys) Serial.print("LIGHT ");
+        if (debugSys) Serial.print(confLightNum[i][1]);
+        if (debugSys) Serial.print(": ");
+        if (debugSys) Serial.println((Value == "ON") ? 1 : 0);
         break;
       }
     }
