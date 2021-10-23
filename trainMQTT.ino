@@ -4,22 +4,27 @@
 #include <PubSubClient.h>
 #include <IniFile.h>
 #include "arduino_secrets.h"
+#include <tjf_mcp23017.h>
+#include <PCA9685.h>
+#include <Wire.h>
 
 #define SD_SELECT 4
 int cntSensor = 0;
 int cntTurnout = 0;
 int cntLight = 0;
 int confTurnoutMap[32][5];
-int confLightNum[32];
+int confLightNum[32][2];
 int confSensorNum[32];
 
 const size_t bufferLen = 80;
 char buffer[bufferLen];
 const char *filename = "/config.ini";
-IniFile ini(filename);
 
+IniFile ini(filename);
 WiFiClient wClient;
 PubSubClient client(wClient);
+tjf_mcp23017 mcp(2);
+ServoDriver servo;
 
 // Update these with values suitable for your hardware/network.
 byte mac[]    = {  0xDE, 0xED, 0xBA, 0xFE, 0xFE, 0xEC };
@@ -96,34 +101,53 @@ void readConf() {
   for (int i=0; i<cntLight; i++) {
     if (ini.getValue("light", i+1, buffer, bufferLen)) {
       strBuffer = buffer;
-      confLightNum[i] = strBuffer.toInt();
+      String tmpStrB = "";
+      int tmpIntB = strBuffer.indexOf(":");
+      tmpStrB = strBuffer.substring(0,tmpIntB);
+      confLightNum[i][0] = tmpStrB.toInt();
+      int oldTmpIntB = tmpIntB;
+      tmpIntB = strBuffer.indexOf(":",tmpIntB + 1);
+      tmpStrB = strBuffer.substring(oldTmpIntB+1,tmpIntB);
+      confLightNum[i][1] = tmpStrB.toInt();
     }
   }
 
+
+  // set GPIO
+  //Turnouts (servos are ignored, as they will be PCA9685 based)
+  //outputs will eventually be MCP23017 based
+  for (int i =0; i<cntTurnout;i++) {
+    if (confTurnoutMap[i][0] == 0) {
+      mcp.pinMode(confTurnoutMap[i][2],OUTPUT);
+    }
+  }
+
+  // factor in the Lights
+  for (int i=0; i<cntLight;i++) {
+    mcp.pinMode(confLightNum[i],OUTPUT);
+  }
+
+  // now sensors
+  for (int i=0; i<cntSensor;i++) {
+    mcp.pinMode(confSensorNum[i],INPUT_PULLUP);
+  }
 }
 
+void ProcLED(int lPin, int Val) {
+  mcp.digitalWrite(lPin,Val);
+}
 
+void ProcServo(int sPin, int sVal) {
+  servo.setAngle(sPin, sVal);
+}
 
 void procTurnout(int turnoutID, int turnoutValue) {
-  String ledORservo = "";
   for (int i=0; i<cntTurnout;i++) {
     if (confTurnoutMap[i][1] == turnoutID) {
       if (confTurnoutMap[i][0] == 0) {
-        // led
-        ledORservo.remove(0,1);
-        Serial.print("LED: ");
-        Serial.print(confTurnoutMap[i][2]);
-        Serial.print(" ");
-        Serial.println(turnoutValue);
-        //ProcLED(confTurnoutMap[i][2],turnoutValue);
+        ProcLED(confTurnoutMap[i][2],turnoutValue);
       } else {
-        // servo
-        ledORservo.remove(0,1);
-        Serial.print("SERVO: ");
-        Serial.print(confTurnoutMap[i][2]);
-        Serial.print(" ");
-        Serial.println(turnoutValue ? confTurnoutMap[i][3] : confTurnoutMap[i][4]);
-        //ProcServo(confTurnoutMap[i][2],turnoutValue);
+        ProcServo(confTurnoutMap[i][2],turnoutValue ? confTurnoutMap[i][3] : confTurnoutMap[i][4]);
       }
       break;
     }
@@ -153,10 +177,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
     int tmpLight = 0;
     tmpTopic.remove(0,19);
     tmpLight = tmpTopic.toInt();
-    if (Value == "ON") {
-      //procLight(tmpLight,1);
-    } else {
-      //procLight(tmpLight,0);
+    for (int i=0; i<cntLight;i++) {
+      if (confLightNum[i][0] == tmpLight) {
+        ProcLED(confLightNum[i][1],(Value == "ON") ? 1 : 0);
+        break;
+      }
     }
   }
   else if (tmpTopic.startsWith("trains/track/turnout/")) {
@@ -181,11 +206,7 @@ long lastReconnectAttempt = 0;
 boolean reconnect() {
   if (client.connect("arduinoClient3")) {
     client.subscribe("trains/track/turnout/#");
-
-
-
-
-
+    client.subscribe("trains/track/light/#");
   }
   return client.connected();
 }
@@ -215,7 +236,10 @@ void setup()
     while (1)
       ;
   }
-
+  mcp.addMCP(0x01); // address (001) of first MCP (decimal value of the binary equivalent of address pins A0, A1, A2)
+  mcp.addMCP(0x02); // address (010) of second MCP
+  mcp.begin();
+  servo.init(0x7f);
   client.setServer(server, 1883);
   client.setCallback(callback);
 
