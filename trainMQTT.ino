@@ -14,7 +14,7 @@ int cntTurnout = 0;
 int cntLight = 0;
 int confTurnoutMap[32][5];
 int confLightNum[32][2];
-int confSensorNum[32];
+int confSensorNum[32][2];
 bool debugSys = false;
 
 const size_t bufferLen = 80;
@@ -30,7 +30,7 @@ ServoDriver servo;
 // Update these with values suitable for your hardware/network.
 IPAddress server(192, 168, 1, 171);
 
-// WiFi card example
+// from arduino_secrets.h
 char ssid[] = WSSID;    // your SSID
 char pass[] = WPSWD;       // your SSID Password
 
@@ -96,22 +96,37 @@ void readConf() {
     }
   }
   for (int i=0; i<cntSensor; i++) {
-    if (ini.getValue("sensor", i+1, buffer, bufferLen)) {
-      strBuffer = buffer;
-      confSensorNum[i] = strBuffer.toInt();
-    }
-  }
-  for (int i=0; i<cntLight; i++) {
-    if (ini.getValue("light", i+1, buffer, bufferLen)) {
+    char sz[4];
+    sprintf(sz, "%d", i+1);
+    if (ini.getValue("sensor", sz, buffer, bufferLen)) {
+      if (debugSys) Serial.print("Sensor ");
       strBuffer = buffer;
       String tmpStrB = "";
       int tmpIntB = strBuffer.indexOf(":");
       tmpStrB = strBuffer.substring(0,tmpIntB);
-      confLightNum[i][0] = tmpStrB.toInt();
+      if (debugSys) Serial.print(tmpStrB);
+      if (debugSys) Serial.print(" - ");
+      confSensorNum[i][0] = tmpStrB.toInt();
       int oldTmpIntB = tmpIntB;
       tmpIntB = strBuffer.indexOf(":",tmpIntB + 1);
       tmpStrB = strBuffer.substring(oldTmpIntB+1,tmpIntB);
-      confLightNum[i][1] = tmpStrB.toInt();
+      if (debugSys) Serial.println(tmpStrB);
+      confSensorNum[i][1] = tmpStrB.toInt();
+    }
+  }
+  for (int i=0; i<cntLight; i++) {
+    char sz[4];
+    sprintf(sz, "%d", i+1);
+    if (ini.getValue("light", sz, buffer, bufferLen)) {
+      strBuffer = buffer;
+      String tmpStrC = "";
+      int tmpIntC = strBuffer.indexOf(":");
+      tmpStrC = strBuffer.substring(0,tmpIntC);
+      confLightNum[i][0] = tmpStrC.toInt();
+      int oldTmpIntC = tmpIntC;
+      tmpIntC = strBuffer.indexOf(":",tmpIntC + 1);
+      tmpStrC = strBuffer.substring(oldTmpIntC+1,tmpIntC);
+      confLightNum[i][1] = tmpStrC.toInt();
     }
   }
 
@@ -165,13 +180,16 @@ void procTurnout(int turnoutID, int turnoutValue) {
   }
 }
 
-void sendSensor(int sensorID, bool sensorValue) {
+void sendSensors() {
   char topic[32];
-  sprintf(topic, "trains/track/sensor/%s", confSensorNum[sensorID]);
-  if (sensorValue == true) {
-    client.publish(topic,"ACTIVE");
-  } else {
-    client.publish(topic,"INACTIVE");
+  for (int i=0; i<cntSensor;i++) {
+
+    sprintf(topic, "trains/track/sensor/%d", confSensorNum[i][0]);
+    if (mcp.digitalRead(confSensorNum[i][1]) == LOW) {
+      client.publish(topic,"ACTIVE");
+    } else {
+      client.publish(topic,"INACTIVE");
+    }
   }
 }
 
@@ -216,7 +234,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
 
 long lastReconnectAttempt = 0;
-
+unsigned long lastSensorReading = 0UL;
 
 boolean reconnect() {
   if (client.connect("arduinoClient3")) {
@@ -295,5 +313,10 @@ void loop()
     // Client connected
 
     client.loop();
+  }
+
+  if (millis()-lastSensorReading > 500) {
+    lastSensorReading = millis();
+    sendSensors();
   }
 }
