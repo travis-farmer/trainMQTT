@@ -28,7 +28,6 @@ tjf_mcp23017 mcp(2);
 ServoDriver servo;
 
 // Update these with values suitable for your hardware/network.
-
 IPAddress server(192, 168, 1, 171);
 
 // WiFi card example
