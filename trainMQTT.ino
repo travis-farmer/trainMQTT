@@ -28,7 +28,7 @@ tjf_mcp23017 mcp(2);
 ServoDriver servo;
 
 // Update these with values suitable for your hardware/network.
-byte mac[]    = {  0xDE, 0xED, 0xBA, 0xFE, 0xFE, 0xEC };
+
 IPAddress server(192, 168, 1, 171);
 
 // WiFi card example
