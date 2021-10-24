@@ -7,14 +7,17 @@
 #include <tjf_mcp23017.h>
 #include <PCA9685.h>
 #include <Wire.h>
+#include <EEPROM.h>
 
 #define SD_SELECT 4
+
+
 int cntSensor = 0;
 int cntTurnout = 0;
 int cntLight = 0;
 int confTurnoutMap[32][5];
 int confLightNum[32][2];
-int confSensorNum[32];
+int confSensorNum[32][2];
 bool debugSys = false;
 
 const size_t bufferLen = 80;
@@ -36,84 +39,40 @@ char ssid[] = WSSID;    // your SSID
 char pass[] = WPSWD;       // your SSID Password
 
 void readConf() {
-  String strBuffer = "";
-  if (ini.getValue("counts", "debug", buffer, bufferLen)) {
-    strBuffer = buffer;
-    if (strBuffer.toInt() == 1) debugSys = true;
-  }
-  if (ini.getValue("counts", "sensor", buffer, bufferLen)) {
-    strBuffer = buffer;
-    cntSensor = strBuffer.toInt();
-  }
-  if (ini.getValue("counts", "turnout", buffer, bufferLen)) {
-    strBuffer = buffer;
-    cntTurnout = strBuffer.toInt();
-  }
-  if (ini.getValue("counts", "light", buffer, bufferLen)) {
-    strBuffer = buffer;
-    cntLight = strBuffer.toInt();
-  }
-  for (int i=0; i<cntTurnout; i++) {
-    char sz[4];
-    sprintf(sz, "%d", i+1);
-    if (ini.getValue("turnout", sz, buffer, bufferLen)) {
-      if (debugSys) Serial.print("Turnout ");
-      strBuffer = buffer;
-      String tmpStr = "";
-      int tmpInt = strBuffer.indexOf(":");
-      tmpStr = strBuffer.substring(0,tmpInt);
-      confTurnoutMap[i][0] = tmpStr.toInt();
-      if (debugSys) Serial.print(tmpStr);
-      if (debugSys) Serial.print(" - ");
-      int oldTmpInt = tmpInt;
-      tmpInt = strBuffer.indexOf(":",tmpInt + 1);
-      tmpStr = strBuffer.substring(oldTmpInt+1,tmpInt);
-      confTurnoutMap[i][1] = tmpStr.toInt();
-      if (debugSys) Serial.print(tmpStr);
-      if (debugSys) Serial.print(" - ");
-      oldTmpInt = tmpInt;
-      tmpInt = strBuffer.indexOf(":",tmpInt + 1);
-      tmpStr = strBuffer.substring(oldTmpInt+1,tmpInt);
-      confTurnoutMap[i][2] = tmpStr.toInt();
-      if (debugSys) Serial.print(tmpStr);
-      oldTmpInt = tmpInt;
-      tmpInt = strBuffer.indexOf(":",tmpInt + 1);
-      if (tmpInt > 1) {
-        if (debugSys) Serial.print(" - ");
-        tmpStr = strBuffer.substring(oldTmpInt+1,tmpInt);
-        confTurnoutMap[i][3] = tmpStr.toInt();
-        if (debugSys) Serial.print(tmpStr);
-        if (debugSys) Serial.print(" - ");
-        oldTmpInt = tmpInt;
-        tmpInt = strBuffer.indexOf(":",tmpInt + 1);
-        tmpStr = strBuffer.substring(oldTmpInt+1,tmpInt);
-        confTurnoutMap[i][4] = tmpStr.toInt();
-        if (debugSys) Serial.println(tmpStr);
-      } else {
-        tmpInt = 0;
-        if (debugSys) Serial.println();
-      }
+  int eeReadBuffer[6];
+  for (int i=0; i<510;i=i+6) { // 85 config lines... not very efficiant yet
+    for (int j=0; j<6; j++) {
+      EEPROM.get((i+j), eeReadBuffer[j]);
+    }
+    if (eeReadBuffer[0] == 255) break; // EOF, rest of data stored is bogus
+    if (eeReadBuffer[0] == 1) {
+      // mode is header
+      // bytes are: debugSys,
+      if (eeReadBuffer[1] == 1) debugSys = true;
+    }
+    else if (eeReadBuffer[0] == 2) {
+      //mode is sensor config
+      // Bytes: ID, MQTT pin, MCP pin
+      confSensorNum[eeReadBuffer[1]][0] = eeReadBuffer[2];
+      confSensorNum[eeReadBuffer[1]][1] = eeReadBuffer[3];
+    }
+    else if (eeReadBuffer[0] == 3) {
+      //mode is light config
+      // Bytes: ID, MQTT pin, MCP pin
+      confLightNum[eeReadBuffer[1]][0] = eeReadBuffer[2];
+      confLightNum[eeReadBuffer[1]][1] = eeReadBuffer[3];
+    }
+    else if (eeReadBuffer[0] == 4) {
+      // mode is turnout config
+      // Bytes: ID, servo(1)/LED(0), MQTT pin, out pin, servo on, servo off
+      confTurnoutMap[eeReadBuffer[1]][0] = eeReadBuffer[2];
+      confTurnoutMap[eeReadBuffer[1]][1] = eeReadBuffer[3];
+      confTurnoutMap[eeReadBuffer[1]][2] = eeReadBuffer[4];
+      confTurnoutMap[eeReadBuffer[1]][3] = eeReadBuffer[5];
+      confTurnoutMap[eeReadBuffer[1]][4] = eeReadBuffer[6];
 
     }
-  }
-  for (int i=0; i<cntSensor; i++) {
-    if (ini.getValue("sensor", i+1, buffer, bufferLen)) {
-      strBuffer = buffer;
-      confSensorNum[i] = strBuffer.toInt();
-    }
-  }
-  for (int i=0; i<cntLight; i++) {
-    if (ini.getValue("light", i+1, buffer, bufferLen)) {
-      strBuffer = buffer;
-      String tmpStrB = "";
-      int tmpIntB = strBuffer.indexOf(":");
-      tmpStrB = strBuffer.substring(0,tmpIntB);
-      confLightNum[i][0] = tmpStrB.toInt();
-      int oldTmpIntB = tmpIntB;
-      tmpIntB = strBuffer.indexOf(":",tmpIntB + 1);
-      tmpStrB = strBuffer.substring(oldTmpIntB+1,tmpIntB);
-      confLightNum[i][1] = tmpStrB.toInt();
-    }
+
   }
 
 
