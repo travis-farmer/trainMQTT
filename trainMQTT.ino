@@ -237,7 +237,6 @@ void readConf() {
 }
 
 void setNexLED(int Led, bool Val) {
-  Led +=1;
   if (Led == 1) t1.setText(Val ? "1" : "0");
   else if (Led == 2) t2.setText(Val ? "1" : "0");
   else if (Led == 3) t3.setText(Val ? "1" : "0");
@@ -305,6 +304,7 @@ void setNexLED(int Led, bool Val) {
 }
 
 void setNexServo(int Pin, int Val) {
+  Pin -=1;
   if (Pin == 0) z0.setValue(Val);
   else if (Pin == 1) z1.setValue(Val);
   else if (Pin == 2) z2.setValue(Val);
