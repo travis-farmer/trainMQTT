@@ -183,7 +183,6 @@ void procTurnout(int turnoutID, int turnoutValue) {
 void sendSensors() {
   char topic[32];
   for (int i=0; i<cntSensor;i++) {
-
     sprintf(topic, "trains/track/sensor/%d", confSensorNum[i][0]);
     if (mcp.digitalRead(confSensorNum[i][1]) == LOW) {
       client.publish(topic,"ACTIVE");
@@ -233,7 +232,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 }
 
 
-long lastReconnectAttempt = 0;
+unsigned long lastReconnectAttempt = 0UL;
 unsigned long lastSensorReading = 0UL;
 
 boolean reconnect() {
@@ -301,8 +300,8 @@ void setup()
 void loop()
 {
   if (!client.connected()) {
-    long now = millis();
-    if (now - lastReconnectAttempt > 5000) {
+    unsigned long now = millis();
+    if (now - lastReconnectAttempt > 5000UL) {
       lastReconnectAttempt = now;
       // Attempt to reconnect
       if (reconnect()) {
@@ -315,7 +314,7 @@ void loop()
     client.loop();
   }
 
-  if (millis()-lastSensorReading > 500) {
+  if (millis()-lastSensorReading > 500UL) {
     lastSensorReading = millis();
     sendSensors();
   }
