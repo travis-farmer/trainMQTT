@@ -1,6 +1,6 @@
 #include <SD.h>
 #include <SPI.h>
-#include <WiFi101.h>
+#include <Ethernet.h>
 #include <PubSubClient.h>
 #include <IniFile.h>
 #include "arduino_secrets.h"
@@ -22,8 +22,8 @@ char buffer[bufferLen];
 const char *filename = "/config.ini";
 
 IniFile ini(filename);
-WiFiClient wClient;
-PubSubClient client(wClient);
+EthernetClient eClient;
+PubSubClient client(eClient);
 tjf_mcp23017 mcp(2);
 ServoDriver servo;
 
@@ -276,18 +276,22 @@ void setup()
   client.setCallback(callback);
 
 
-  //WiFi.setPins(53,48,49);
-  int status = WiFi.begin(ssid, pass);
-  if ( status != WL_CONNECTED) {
-    Serial.println("Couldn't get a wifi connection");
-    while(true);
-  }
-  // print out info about the connection:
-  else {
-    Serial.println("Connected to network");
-    IPAddress ip = WiFi.localIP();
-    Serial.print("My IP address is: ");
-    Serial.println(ip);
+  if (Ethernet.begin(mac) == 0) {
+    Serial.println("Failed to configure Ethernet using DHCP");
+    // Check for Ethernet hardware present
+    if (Ethernet.hardwareStatus() == EthernetNoHardware) {
+      Serial.println("Ethernet shield was not found.  Sorry, can't run without hardware. :(");
+      errorProc(1);
+    }
+    if (Ethernet.linkStatus() == LinkOFF) {
+      Serial.println("Ethernet cable is not connected.");
+      errorProc(2);
+    }
+    // try to congifure using IP address instead of DHCP:
+    Ethernet.begin(mac, ip, myDns);
+  } else {
+    Serial.print("  DHCP assigned IP ");
+    Serial.println(Ethernet.localIP());
   }
   delay(1500);
   lastReconnectAttempt = 0;
