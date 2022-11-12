@@ -122,7 +122,7 @@ void readConf() {
 
   // now sensors
   for (int i=0; i<cntSensor;i++) {
-    mcp.pinMode(confSensorNum[i],INPUT_PULLUP);
+    mcp.pinMode(confSensorNum[i],INPUT);
   }
 }
 
@@ -147,7 +147,7 @@ void sendSensors() {
   char topic[32];
   for (int i=0; i<cntSensor;i++) {
     sprintf(topic, "trains/track/sensor/%d", confSensorNum[i][0]);
-    if (mcp.digitalRead(confSensorNum[i][1]) == LOW) {
+    if (mcp.digitalRead(confSensorNum[i][1]) == HIGH) {
       client.publish(topic,"ACTIVE");
     } else {
       client.publish(topic,"INACTIVE");
