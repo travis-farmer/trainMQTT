@@ -5,14 +5,13 @@
 #include <IniFile.h>
 #include "arduino_secrets.h"
 #include <tjf_mcp23017.h>
-#include <PCA9685.h>
 #include <Wire.h>
 
 #define SD_SELECT 4
 int cntSensor = 0;
 int cntTurnout = 0;
 int cntLight = 0;
-int confTurnoutMap[32][5];
+int confTurnoutMap[32][2];
 int confLightNum[32][2];
 int confSensorNum[32][2];
 bool debugSys = false;
@@ -25,7 +24,6 @@ IniFile ini(filename);
 EthernetClient eClient;
 PubSubClient client(eClient);
 tjf_mcp23017 mcp(2);
-ServoDriver servo;
 
 // Update these with values suitable for your hardware/network.
 IPAddress server(192, 168, 1, 171);
@@ -72,27 +70,6 @@ void readConf() {
       if (debugSys) Serial.print(" - ");
       oldTmpInt = tmpInt;
       tmpInt = strBuffer.indexOf(":",tmpInt + 1);
-      tmpStr = strBuffer.substring(oldTmpInt+1,tmpInt);
-      confTurnoutMap[i][2] = tmpStr.toInt();
-      if (debugSys) Serial.print(tmpStr);
-      oldTmpInt = tmpInt;
-      tmpInt = strBuffer.indexOf(":",tmpInt + 1);
-      if (tmpInt > 1) {
-        if (debugSys) Serial.print(" - ");
-        tmpStr = strBuffer.substring(oldTmpInt+1,tmpInt);
-        confTurnoutMap[i][3] = tmpStr.toInt();
-        if (debugSys) Serial.print(tmpStr);
-        if (debugSys) Serial.print(" - ");
-        oldTmpInt = tmpInt;
-        tmpInt = strBuffer.indexOf(":",tmpInt + 1);
-        tmpStr = strBuffer.substring(oldTmpInt+1,tmpInt);
-        confTurnoutMap[i][4] = tmpStr.toInt();
-        if (debugSys) Serial.println(tmpStr);
-      } else {
-        tmpInt = 0;
-        if (debugSys) Serial.println();
-      }
-
     }
   }
   for (int i=0; i<cntSensor; i++) {
@@ -135,9 +112,7 @@ void readConf() {
   //Turnouts (servos are ignored, as they will be PCA9685 based)
   //outputs will eventually be MCP23017 based
   for (int i =0; i<cntTurnout;i++) {
-    if (confTurnoutMap[i][0] == 0) {
-      mcp.pinMode(confTurnoutMap[i][2],OUTPUT);
-    }
+    mcp.pinMode(confTurnoutMap[i][1],OUTPUT);
   }
 
   // factor in the Lights
@@ -159,22 +134,10 @@ void ProcLED(int lPin, int lVal) {
   if (debugSys) Serial.println(lVal);
 }
 
-void ProcServo(int sPin, int sVal) {
-  servo.setAngle(sPin, sVal);
-  if (debugSys) Serial.print("SERVO ");
-  if (debugSys) Serial.print(sPin);
-  if (debugSys) Serial.print(": ");
-  if (debugSys) Serial.println(sVal);
-}
-
 void procTurnout(int turnoutID, int turnoutValue) {
   for (int i=0; i<cntTurnout;i++) {
-    if (confTurnoutMap[i][1] == turnoutID) {
-      if (confTurnoutMap[i][0] == 0) {
-        ProcLED(confTurnoutMap[i][2],turnoutValue);
-      } else {
-        ProcServo(confTurnoutMap[i][2],turnoutValue ? confTurnoutMap[i][3] : confTurnoutMap[i][4]);
-      }
+    if (confTurnoutMap[i][0] == turnoutID) {
+      ProcLED(confTurnoutMap[i][1],turnoutValue);
       break;
     }
   }
@@ -271,7 +234,6 @@ void setup()
   mcp.addMCP(0x01); // address (001) of first MCP (decimal value of the binary equivalent of address pins A0, A1, A2)
   mcp.addMCP(0x02); // address (010) of second MCP
   mcp.begin();
-  servo.init(0x7f);
   client.setServer(server, 1883);
   client.setCallback(callback);
 
